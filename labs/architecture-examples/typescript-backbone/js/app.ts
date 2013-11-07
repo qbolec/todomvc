@@ -45,47 +45,7 @@ DEALINGS IN THE SOFTWARE.
 // [LocalStorage adapter](backbone-localstorage.js)
 // to persist Backbone models within your browser.
 
-declare var $: any;
-declare module Backbone {
-	export class Model {
-		constructor (attr? , opts? );
-		get(name: string): any;
-		set(name: string, val: any): void;
-		set(obj: any): void;
-		save(attr? , opts? ): void;
-		destroy(): void;
-		bind(ev: string, f: Function, ctx?: any): void;
-		toJSON(): any;
-	}
-	export class Collection {
-		constructor (models? , opts? );
-		bind(ev: string, f: Function, ctx?: any): void;
-		collection: Model;
-		length: number;
-		create(attrs, opts? ): Collection;
-		each(f: (elem: any) => void ): void;
-		fetch(opts?: any): void;
-		last(): any;
-		last(n: number): any[];
-		filter(f: (elem: any) => any): Collection;
-		without(...values: any[]): Collection;
-	}
-	export class View {
-		constructor (options? );
-		$(selector: string): any;
-		el: HTMLElement;
-		$el: any;
-		model: Model;
-		remove(): void;
-		delegateEvents: any;
-		make(tagName: string, attrs? , opts? ): View;
-		setElement(element: HTMLElement, delegate?: boolean): void;
-		tagName: string;
-		events: any;
-
-		static extend: any;
-	}
-}
+///<reference path="./libs/backbone/backbone.d.ts" />
 declare var _: any;
 declare var Store: any;
 
@@ -180,18 +140,20 @@ class TodoView extends Backbone.View {
 
 	static ENTER_KEY:number = 13;
 
+        events(){
+          return {
+            'click .check': 'toggleDone',
+            'dblclick label.todo-content': 'edit',
+            'click button.destroy': 'clear',
+            'keypress .todo-input': 'updateOnEnter',
+            'blur .todo-input': 'close'
+          };
+        }
 	constructor (options? ) {
 		//... is a list tag.
 		this.tagName = 'li';
 
 		// The DOM events specific to an item.
-		this.events = {
-			'click .check': 'toggleDone',
-			'dblclick label.todo-content': 'edit',
-			'click button.destroy': 'clear',
-			'keypress .todo-input': 'updateOnEnter',
-			'blur .todo-input': 'close'
-		};
 
 		super(options);
 
@@ -270,7 +232,7 @@ class AppView extends Backbone.View {
 		_.bindAll(this, 'addOne', 'addAll', 'render', 'toggleAllComplete');
 
 		this.input = this.$('#new-todo');
-		this.allCheckbox = this.$('.mark-all-done')[0];
+		this.allCheckbox = <HTMLInputElement>this.$('.mark-all-done')[0];
 		this.mainElement = this.$('#main')[0];
 		this.footerElement = this.$('#footer')[0];
 		this.statsTemplate = _.template($('#stats-template').html());
@@ -303,6 +265,7 @@ class AppView extends Backbone.View {
 		}
 
 		this.allCheckbox.checked = !remaining;
+                return this;
 	}
 
 	// Add a single todo item to the list by creating a view for it, and
