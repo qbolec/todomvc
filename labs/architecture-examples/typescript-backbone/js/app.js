@@ -88,6 +88,7 @@ var Todos = new TodoList();
 var TodoView = (function (_super) {
     __extends(TodoView, _super);
     function TodoView(options) {
+        var _this = this;
         //... is a list tag.
         this.tagName = 'li';
 
@@ -98,29 +99,39 @@ var TodoView = (function (_super) {
         this.template = _.template($('#item-template').html());
 
         _.bindAll(this, 'render', 'close', 'remove');
-        this.model.bind('change', this.render);
-        this.model.bind('destroy', this.remove);
+        this.model.get('todoModel').bind('change', this.render);
+        this.listenTo(this.model, 'change:editing', function (model, editing) {
+            if (editing) {
+                _this.edit();
+            } else {
+                _this.close();
+            }
+        });
     }
     TodoView.prototype.events = function () {
+        var _this = this;
         return {
-            'click .check': 'toggleDone',
-            'dblclick label.todo-content': 'edit',
-            'click button.destroy': 'clear',
+            'click .check': function () {
+                return _this.trigger('toggleDone');
+            },
+            'dblclick label.todo-content': function () {
+                return _this.trigger('startEditing');
+            },
+            'click button.destroy': function () {
+                return _this.trigger('clear');
+            },
             'keypress .todo-input': 'updateOnEnter',
-            'blur .todo-input': 'close'
+            'blur .todo-input': function () {
+                return _this.trigger('close');
+            }
         };
     };
 
     // Re-render the contents of the todo item.
     TodoView.prototype.render = function () {
-        this.$el.html(this.template(this.model.toJSON()));
+        this.$el.html(this.template(this.model.get('todoModel').toJSON()));
         this.input = this.$('.todo-input');
         return this;
-    };
-
-    // Toggle the `'done'` state of the model.
-    TodoView.prototype.toggleDone = function () {
-        this.model.toggle();
     };
 
     // Switch this view into `'editing'` mode, displaying the input field.
@@ -131,23 +142,76 @@ var TodoView = (function (_super) {
 
     // Close the `'editing'` mode, saving changes to the todo.
     TodoView.prototype.close = function () {
-        this.model.save({ content: this.input.val() });
         this.$el.removeClass('editing');
     };
 
     // If you hit `enter`, we're through editing the item.
     TodoView.prototype.updateOnEnter = function (e) {
         if (e.keyCode == TodoView.ENTER_KEY)
-            close();
+            this.trigger('close');
     };
 
-    // Remove the item, destroy the model.
-    TodoView.prototype.clear = function () {
-        this.model.clear();
+    TodoView.prototype.getText = function () {
+        return this.input.val();
     };
     TodoView.ENTER_KEY = 13;
     return TodoView;
 })(Backbone.View);
+var Control = (function (_super) {
+    __extends(Control, _super);
+    function Control() {
+        _super.apply(this, arguments);
+    }
+    Control.prototype.getEl = function () {
+        return this.view.el;
+    };
+    Control.prototype.initialize = function () {
+        var _this = this;
+        this.listenTo(this, 'destroy', function () {
+            return _this.view.remove();
+        });
+    };
+    return Control;
+})(Backbone.Model);
+var TodoControl = (function (_super) {
+    __extends(TodoControl, _super);
+    function TodoControl() {
+        _super.apply(this, arguments);
+    }
+    TodoControl.prototype.defaults = function () {
+        return {
+            editing: false
+        };
+    };
+    TodoControl.prototype.resetView = function () {
+        var _this = this;
+        this.view = new TodoView({ model: this });
+        this.listenTo(this.view, 'toggleDone', function () {
+            return _this.get('todoModel').toggle();
+        });
+        this.listenTo(this.view, 'startEditing', function () {
+            return _this.set('editing', true);
+        });
+        this.listenTo(this.view, 'close', function () {
+            return _this.set('editing', false);
+        });
+        this.listenTo(this.view, 'close', function () {
+            _this.get('todoModel').save({ content: _this.view.getText() });
+        });
+        this.listenTo(this.view, 'clear', function () {
+            return _this.get('todoModel').clear();
+        });
+    };
+    TodoControl.prototype.initialize = function () {
+        var _this = this;
+        _super.prototype.initialize.call(this);
+        this.resetView();
+        this.listenTo(this.get('todoModel'), 'destroy', function () {
+            return _this.trigger('destroy');
+        });
+    };
+    return TodoControl;
+})(Control);
 
 // The Application
 // ---------------
@@ -211,8 +275,13 @@ var AppView = (function (_super) {
     // Add a single todo item to the list by creating a view for it, and
     // appending its element to the `<ul>`.
     AppView.prototype.addOne = function (todo) {
-        var view = new TodoView({ model: todo });
-        this.$('#todo-list').append(view.render().el);
+        var control = new TodoControl({ todoModel: todo });
+        this.$('#todo-list').append(control.getEl());
+        this.listenTo(control, 'change:todoModel', function (control, todo) {
+            if (!todo) {
+                control.destroy();
+            }
+        });
     };
 
     // Add all items in the **Todos** collection at once.
