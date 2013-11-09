@@ -166,6 +166,8 @@ class TodoView extends Backbone.View {
                 this.listenTo(this.model,'change:editing',(model,editing)=>{
                   if(editing){
                     this.edit();
+                  }else{
+                    this.close();
                   }
                 });
 	}
