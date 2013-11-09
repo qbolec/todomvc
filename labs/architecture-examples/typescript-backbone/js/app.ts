@@ -134,19 +134,19 @@ class TodoView extends Backbone.View {
 	// app, we set a direct reference on the model for convenience.
 	template: (data: any) => string;
 
-	// A TodoView model must be a Todo, redeclare with specific type
-	model: Todo;
+	// A TodoView model must be a TodoControl, redeclare with specific type
+	model: TodoControl;
 	input: any;
 
 	static ENTER_KEY:number = 13;
 
         events(){
           return {
-            'click .check': 'toggleDone',
-            'dblclick label.todo-content': 'edit',
-            'click button.destroy': 'clear',
+            'click .check': () => this.trigger('toggleDone'),
+            'dblclick label.todo-content': () => this.trigger('startEditing'),
+            'click button.destroy': () => this.trigger('clear'),
             'keypress .todo-input': 'updateOnEnter',
-            'blur .todo-input': 'close'
+            'blur .todo-input': () => this.trigger('close')
           };
         }
 	constructor (options? ) {
@@ -161,20 +161,20 @@ class TodoView extends Backbone.View {
 		this.template = _.template($('#item-template').html());
 
 		_.bindAll(this, 'render', 'close', 'remove');
-		this.model.bind('change', this.render);
-		this.model.bind('destroy', this.remove);
+		this.model.get('todoModel').bind('change', this.render);
+		this.model.get('todoModel').bind('destroy', this.remove);
+                this.listenTo(this.model,'change:editing',(model,editing)=>{
+                  if(editing){
+                    this.edit();
+                  }
+                });
 	}
 
 	// Re-render the contents of the todo item.
 	render() {
-		this.$el.html(this.template(this.model.toJSON()));
+		this.$el.html(this.template(this.model.get('todoModel').toJSON()));
 		this.input = this.$('.todo-input');
 		return this;
-	}
-
-	// Toggle the `'done'` state of the model.
-	toggleDone() {
-		this.model.toggle();
 	}
 
 	// Switch this view into `'editing'` mode, displaying the input field.
@@ -185,31 +185,44 @@ class TodoView extends Backbone.View {
 
 	// Close the `'editing'` mode, saving changes to the todo.
 	close() {
-		this.model.save({ content: this.input.val() });
 		this.$el.removeClass('editing');
 	}
 
 	// If you hit `enter`, we're through editing the item.
 	updateOnEnter(e) {
-		if (e.keyCode == TodoView.ENTER_KEY) close();
+		if (e.keyCode == TodoView.ENTER_KEY) this.trigger('close');
 	}
 
-	// Remove the item, destroy the model.
-	clear() {
-		this.model.clear();
-	}
+        getText(){
+          return this.input.val();
+        }
 
 }
 class Control extends Backbone.Model {
+  view : Backbone.View;
+  getEl(){
+    return this.view.el;
+  }
 }
 class TodoControl extends Control {
-  private resetView(){
-    if(this.get('model')){
-      this.set('view',new TodoView({model:this.get('model')}));
+  view : TodoView;
+  defaults() {
+    return {
+      editing: false
     }
   }
+  private resetView(){
+    this.view = new TodoView({model:this});
+    this.listenTo(this.view,'toggleDone', () => this.get('todoModel').toggle());
+    this.listenTo(this.view,'startEditing', () => this.set('editing',true));
+    this.listenTo(this.view,'close', () => this.set('editing',false));
+    this.listenTo(this.view,'close', () => {
+      this.get('todoModel').save({ content: this.view.getText() });
+    });
+    this.listenTo(this.view,'clear', () => this.get('todoModel').clear());
+
+  }
   public initialize(){
-    this.listenTo(this,'change:model',() => {this.resetView()});
     this.resetView();
   }
 }
@@ -284,8 +297,8 @@ class AppView extends Backbone.View {
 	// Add a single todo item to the list by creating a view for it, and
 	// appending its element to the `<ul>`.
 	addOne(todo) {
-		var view = new TodoControl({ model: todo }).get('view');
-		this.$('#todo-list').append(view.render().el);
+		var control = new TodoControl({ todoModel: todo });
+		this.$('#todo-list').append(control.getEl());
 	}
 
 	// Add all items in the **Todos** collection at once.
