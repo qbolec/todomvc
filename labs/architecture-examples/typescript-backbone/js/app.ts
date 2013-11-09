@@ -200,6 +200,19 @@ class TodoView extends Backbone.View {
 	}
 
 }
+class Control extends Backbone.Model {
+}
+class TodoControl extends Control {
+  private resetView(){
+    if(this.get('model')){
+      this.set('view',new TodoView({model:this.get('model')}));
+    }
+  }
+  public initialize(){
+    this.listenTo(this,'change:model',() => {this.resetView()});
+    this.resetView();
+  }
+}
 
 // The Application
 // ---------------
@@ -271,7 +284,7 @@ class AppView extends Backbone.View {
 	// Add a single todo item to the list by creating a view for it, and
 	// appending its element to the `<ul>`.
 	addOne(todo) {
-		var view = new TodoView({ model: todo });
+		var view = new TodoControl({ model: todo }).get('view');
 		this.$('#todo-list').append(view.render().el);
 	}
 
