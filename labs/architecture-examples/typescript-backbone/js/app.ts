@@ -162,7 +162,6 @@ class TodoView extends Backbone.View {
 
 		_.bindAll(this, 'render', 'close', 'remove');
 		this.model.get('todoModel').bind('change', this.render);
-		this.model.get('todoModel').bind('destroy', this.remove);
                 this.listenTo(this.model,'change:editing',(model,editing)=>{
                   if(editing){
                     this.edit();
@@ -205,12 +204,15 @@ class Control extends Backbone.Model {
   getEl(){
     return this.view.el;
   }
+  initialize(){
+    this.listenTo(this,'destroy', ()=> this.view.remove());
+  }
 }
 class TodoControl extends Control {
   view : TodoView;
   defaults() {
     return {
-      editing: false
+      editing: false,
     }
   }
   private resetView(){
@@ -222,10 +224,11 @@ class TodoControl extends Control {
       this.get('todoModel').save({ content: this.view.getText() });
     });
     this.listenTo(this.view,'clear', () => this.get('todoModel').clear());
-
   }
   public initialize(){
+    super.initialize();
     this.resetView();
+    this.listenTo(this.get('todoModel'),'destroy', () => this.trigger('destroy'));
   }
 }
 
@@ -301,6 +304,11 @@ class AppView extends Backbone.View {
 	addOne(todo) {
 		var control = new TodoControl({ todoModel: todo });
 		this.$('#todo-list').append(control.getEl());
+                this.listenTo(control,'change:todoModel',(control,todo)=>{
+                  if(!todo){
+                    control.destroy();
+                  }
+                });
 	}
 
 	// Add all items in the **Todos** collection at once.
